@@ -1,24 +1,32 @@
 FROM mcr.microsoft.com/aiforearth/base-py:latest
 
-# Example of installing additonal Anaconda packages - numpy and pandas
+RUN apt-get update && apt-get -y install sudo \
+    && apt-get install -y cifs-utils \
+    && apt-get install -y azcopy
+
 RUN echo "source activate ai4e_py_api" >> ~/.bashrc \
     && conda install -c conda-forge -n ai4e_py_api numpy pandas xarray netCDF4
 
-RUN /usr/local/envs/ai4e_py_api/bin/pip install --upgrade pip
-
-RUN /usr/local/envs/ai4e_py_api/bin/pip install tensorflow pillow
-
 # Note: supervisor.conf reflects the location and name of your api code.
 # If the default (./my_api/runserver.py) is renamed, you must change supervisor.conf
+# Copy your API code
+COPY ./GSP_API /app/GSP_API/
 COPY ./supervisord.conf /etc/supervisord.conf
 # startup.sh is a helper script
 COPY ./startup.sh /
 RUN chmod +x /startup.sh
 
+# Copy file connection information
+COPY ./file_mount.json /app/fuse/file_mount.json
+
+COPY ./file_mounter.py /app/fuse/file_mounter.py
+RUN chmod +x /app/fuse/file_mounter.py
+
 COPY ./LocalForwarder.config /lf/
 
-# Copy your API code
-COPY ./tf_iNat_api /app/tf_iNat_api/
+#RUN mkdir -p /mnt/output
+
+#RUN mount -t cifs //globalfloodsdiag360.file.core.windows.net/output /mnt/output -o vers=3.0,username=globalfloodsdiag360,password=+c7Ecmc7QVJxnuFUshZJg9YZZfBl8CBa8Qi6dMmTGPQgDh9K0ptGtZ69CkeU1rbnBFzXzWNJa+RVqwHUIc9XQg==,dir_mode=0777,file_mode=0777,sec=ntlmssp
 
 # Application Insights keys and trace configuration
 ENV APPINSIGHTS_INSTRUMENTATIONKEY= \
@@ -27,17 +35,18 @@ ENV APPINSIGHTS_INSTRUMENTATIONKEY= \
     OCAGENT_TRACE_EXPORTER_ENDPOINT=localhost:55678
 
 # The following variables will allow you to filter logs in AppInsights
-ENV SERVICE_OWNER=AI4E_PyTorch_Example \
+ENV SERVICE_OWNER=AI4E_GSP_Example \
     SERVICE_CLUSTER=Local\ Docker \
-    SERVICE_MODEL_NAME=AI4E_PyTorch_Example \
+    SERVICE_MODEL_NAME=GSP-sample \
     SERVICE_MODEL_FRAMEWORK=Python \
     SERVICE_MODEL_FRAMEOWRK_VERSION=3.6.6 \
     SERVICE_MODEL_VERSION=1.0
 
-ENV API_PREFIX=/v1/tf_iNat_api
+ENV API_PREFIX=/v1/global_streamflow_prediction/get_streamflow
 
-ENV STORAGE_ACCOUNT_NAME= \
-    STORAGE_ACCOUNT_KEY=
+ENV CUSTOM_VISION_PREDICTION_KEY= \
+    CUSTOM_VISION_PROJECT_ID= \
+    CUSTOM_VISION_ITERATION_ID=
 
 # Expose the port that is to be used when calling your API
 EXPOSE 80
